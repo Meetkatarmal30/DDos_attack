@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid IDS Real-Time Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent: #3b82f6;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+        }
+
+        h1 {
+            text-align: center;
+            font-weight: 300;
+            margin-bottom: 2rem;
+            color: var(--accent);
+        }
+
+        .stats-container {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--panel-bg);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            min-width: 250px;
+        }
+
+        .stat-value {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .stat-value.attacks { color: var(--danger); }
+        .stat-value.processed { color: var(--success); }
+
+        .predictions-panel {
+            background: var(--panel-bg);
+            padding: 2rem;
+            border-radius: 10px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #334155;
+        }
+
+        th { color: #94a3b8; font-weight: normal; }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .badge.attack { 
+            background-color: rgba(239, 68, 68, 0.2); 
+            color: #fca5a5; 
+            border: 1px solid #ef4444; 
+        }
+        
+        .badge.benign { 
+            background-color: rgba(16, 185, 129, 0.2); 
+            color: #6ee7b7; 
+            border: 1px solid #10b981; 
+        }
+
+        .hash-code {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🛡️ Hybrid ML Intrusion Detection System</h1>
+
+    <div class="stats-container">
+        <div class="stat-card">
+            <h3>Packets Processed</h3>
+            <div id="total-processed" class="stat-value processed">0</div>
+        </div>
+        <div class="stat-card">
+            <h3>Attacks Detected</h3>
+            <div id="total-attacks" class="stat-value attacks">0</div>
+        </div>
+    </div>
+
+    <div class="predictions-panel">
+        <h2>Live Real-Time Monitoring</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Prediction Status</th>
+                    <th>Classifier Used</th>
+                    <th>Integrity Verification (SHA-256)</th>
+                </tr>
+            </thead>
+            <tbody id="predictions-tbody">
+                <!-- Rows will be injected here dynamically by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function fetchStats() {
+            try {
+                // Periodically fetch from Flask backend
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                document.getElementById('total-processed').textContent = data.total_processed;
+                document.getElementById('total-attacks').textContent = data.total_attacks;
+
+                const tbody = document.getElementById('predictions-tbody');
+                tbody.innerHTML = '';
+
+                data.predictions.forEach(pred => {
+                    const row = document.createElement('tr');
+                    
+                    const badgeClass = pred.prediction === 'ATTACK' ? 'attack' : 'benign';
+                    
+                    row.innerHTML = `
+                        <td>${pred.timestamp}</td>
+                        <td><span class="badge ${badgeClass}">${pred.prediction}</span></td>
+                        <td>${pred.model_used}</td>
+                        <td class="hash-code" title="${pred.hash_val}">
+                            ${pred.hash_val.substring(0, 16)}...
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error("Warning: Application awaiting database initialization:", error);
+            }
+        }
+
+        // Setup polling every 1 second
+        setInterval(fetchStats, 1000);
+        fetchStats(); // Fetch immediately on load
+    </script>
+
+</body>
+</html>
