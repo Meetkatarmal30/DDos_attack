@@ -4,128 +4,260 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hybrid IDS Real-Time Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0f172a;
-            --panel-bg: #1e293b;
-            --text-color: #f8fafc;
-            --accent: #3b82f6;
-            --danger: #ef4444;
+            --bg-grad-1: #0f172a;
+            --bg-grad-2: #020617;
+            --panel-bg: rgba(30, 41, 59, 0.6);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --danger: #f43f5e;
             --success: #10b981;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, var(--bg-grad-1), var(--bg-grad-2));
+            background-attachment: fixed;
+            color: var(--text-main);
             margin: 0;
             padding: 2rem;
+            min-height: 100vh;
+        }
+
+        /* Glassmorphism utility */
+        .glass {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--panel-border);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
         }
 
         h1 {
             text-align: center;
-            font-weight: 300;
+            font-weight: 800;
+            font-size: 2.8rem;
             margin-bottom: 2rem;
-            color: var(--accent);
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
+            text-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
         }
 
         .stats-container {
             display: flex;
             justify-content: center;
             gap: 2rem;
-            margin-bottom: 2rem;
+            margin-bottom: 3rem;
         }
 
         .stat-card {
-            background: var(--panel-bg);
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 2rem 3rem;
             text-align: center;
-            min-width: 250px;
+            min-width: 280px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+        }
+
+        .stat-title {
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            font-weight: 600;
         }
 
         .stat-value {
-            font-size: 3rem;
-            font-weight: bold;
-            margin: 10px 0;
+            font-size: 4rem;
+            font-weight: 800;
+            margin: 10px 0 0 0;
+            line-height: 1;
         }
 
-        .stat-value.attacks { color: var(--danger); }
-        .stat-value.processed { color: var(--success); }
+        .stat-value.attacks { 
+            color: var(--danger);
+            text-shadow: 0 0 25px rgba(244, 63, 94, 0.4);
+        }
+        .stat-value.processed { 
+            color: var(--success);
+            text-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+        }
 
         .predictions-panel {
-            background: var(--panel-bg);
-            padding: 2rem;
-            border-radius: 10px;
-            max-width: 1000px;
+            padding: 2.5rem;
+            max-width: 1200px;
             margin: 0 auto;
+        }
+
+        .predictions-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1.5rem;
+            margin-top: 0;
+            font-size: 1.6rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .live-indicator {
+            width: 12px;
+            height: 12px;
+            background-color: var(--danger);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--danger);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+            70% { box-shadow: 0 0 0 12px rgba(244, 63, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
         }
 
         table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0 8px;
             margin-top: 1rem;
         }
 
-        th, td {
-            padding: 12px;
+        th { 
+            color: var(--text-muted); 
+            font-weight: 600; 
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1.5px;
+            padding: 0 16px 12px 16px;
             text-align: left;
-            border-bottom: 1px solid #334155;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
 
-        th { color: #94a3b8; font-weight: normal; }
+        td {
+            padding: 18px 16px;
+            background: rgba(255,255,255,0.03);
+            border-top: 1px solid rgba(255,255,255,0.04);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            vertical-align: middle;
+        }
+        
+        tr td:first-child {
+            border-left: 1px solid rgba(255,255,255,0.04);
+            border-top-left-radius: 12px;
+            border-bottom-left-radius: 12px;
+        }
+        
+        tr td:last-child {
+            border-right: 1px solid rgba(255,255,255,0.04);
+            border-top-right-radius: 12px;
+            border-bottom-right-radius: 12px;
+        }
+
+        tbody tr {
+            transition: all 0.2s ease;
+            animation: slideIn 0.5s ease-out forwards;
+        }
+
+        tbody tr:hover {
+            background: rgba(255,255,255,0.08);
+            transform: scale(1.01);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
 
         .badge {
-            padding: 4px 10px;
-            border-radius: 20px;
+            padding: 6px 16px;
+            border-radius: 30px;
             font-size: 0.85rem;
-            font-weight: bold;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: inline-block;
         }
 
         .badge.attack { 
-            background-color: rgba(239, 68, 68, 0.2); 
-            color: #fca5a5; 
-            border: 1px solid #ef4444; 
+            background: rgba(244, 63, 94, 0.15); 
+            color: #fda4af; 
+            border: 1px solid rgba(244, 63, 94, 0.5); 
+            box-shadow: 0 0 15px rgba(244, 63, 94, 0.2);
         }
         
         .badge.benign { 
-            background-color: rgba(16, 185, 129, 0.2); 
+            background: rgba(16, 185, 129, 0.15); 
             color: #6ee7b7; 
-            border: 1px solid #10b981; 
+            border: 1px solid rgba(16, 185, 129, 0.4); 
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
         }
 
         .hash-code {
-            font-family: monospace;
-            font-size: 0.8rem;
-            color: #64748b;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            color: #94a3b8;
+            background: rgba(0,0,0,0.4);
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .shap-info {
+            font-size: 0.85rem;
+            color: #bae6fd;
+            line-height: 1.5;
+            max-width: 350px;
+        }
+        .shap-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: #0ea5e9;
+            font-weight: 800;
+            display: block;
+            margin-bottom: 4px;
+            letter-spacing: 1px;
         }
     </style>
 </head>
 <body>
 
-    <h1>🛡️ Hybrid ML Intrusion Detection System</h1>
+    <h1>Hybrid IDS Real-Time Dashboard</h1>
 
     <div class="stats-container">
-        <div class="stat-card">
-            <h3>Packets Processed</h3>
+        <div class="stat-card glass">
+            <div class="stat-title">Packets Processed</div>
             <div id="total-processed" class="stat-value processed">0</div>
         </div>
-        <div class="stat-card">
-            <h3>Attacks Detected</h3>
+        <div class="stat-card glass">
+            <div class="stat-title">Attacks Detected</div>
             <div id="total-attacks" class="stat-value attacks">0</div>
         </div>
     </div>
 
-    <div class="predictions-panel">
-        <h2>Live Real-Time Monitoring</h2>
+    <div class="predictions-panel glass">
+        <h2 class="predictions-header">
+            <div class="live-indicator"></div>
+            Live Real-Time Monitoring
+        </h2>
         <table>
             <thead>
                 <tr>
-                    <th>Timestamp</th>
-                    <th>Prediction Status</th>
-                    <th>Classifier Used</th>
-                    <th>Integrity Verification (SHA-256)</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>Classifier</th>
+                    <th>AI Explanation (SHAP)</th>
+                    <th>Secure Hash</th>
                 </tr>
             </thead>
             <tbody id="predictions-tbody">
@@ -135,14 +267,20 @@
     </div>
 
     <script>
+        let lastDataStr = "";
+
         async function fetchStats() {
             try {
-                // Periodically fetch from Flask backend
                 const response = await fetch('/api/stats');
                 const data = await response.json();
                 
                 document.getElementById('total-processed').textContent = data.total_processed;
                 document.getElementById('total-attacks').textContent = data.total_attacks;
+
+                // Check if data changed to prevent re-rendering and losing hover states/animations
+                const currentDataStr = JSON.stringify(data.predictions);
+                if (currentDataStr === lastDataStr) return;
+                lastDataStr = currentDataStr;
 
                 const tbody = document.getElementById('predictions-tbody');
                 tbody.innerHTML = '';
@@ -152,24 +290,37 @@
                     
                     const badgeClass = pred.prediction === 'ATTACK' ? 'attack' : 'benign';
                     
+                    let shapHtml = '<span style="color: #64748b;">-</span>';
+                    if (pred.shap_info) {
+                        shapHtml = `<div class="shap-info">
+                                        <span class="shap-label">Top Alert Triggers:</span>
+                                        ${pred.shap_info.replace('SHAP: ', '')}
+                                    </div>`;
+                    }
+                    
+                    // Format time to just be HH:MM:SS
+                    const timeOnly = pred.timestamp.split(' ')[1] || pred.timestamp;
+
                     row.innerHTML = `
-                        <td>${pred.timestamp}</td>
+                        <td style="color: #94a3b8; font-family: monospace; font-size: 0.9rem;">${timeOnly}</td>
                         <td><span class="badge ${badgeClass}">${pred.prediction}</span></td>
-                        <td>${pred.model_used}</td>
-                        <td class="hash-code" title="${pred.hash_val}">
-                            ${pred.hash_val.substring(0, 16)}...
+                        <td style="color: #e2e8f0; font-weight: 600;">${pred.model_used}</td>
+                        <td>${shapHtml}</td>
+                        <td>
+                            <span class="hash-code" title="${pred.hash_val}">
+                                ${pred.hash_val.substring(0, 14)}...
+                            </span>
                         </td>
                     `;
                     tbody.appendChild(row);
                 });
             } catch (error) {
-                console.error("Warning: Application awaiting database initialization:", error);
+                console.error("Waiting for backend...", error);
             }
         }
 
-        // Setup polling every 1 second
         setInterval(fetchStats, 1000);
-        fetchStats(); // Fetch immediately on load
+        fetchStats();
     </script>
 
 </body>

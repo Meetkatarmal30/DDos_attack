@@ -25,7 +25,8 @@ def setup_db():
                   timestamp TEXT, 
                   prediction TEXT, 
                   model_used TEXT, 
-                  hash_val TEXT)''')
+                  hash_val TEXT,
+                  shap_info TEXT)''')
     
     # Clear old data for a fresh real-time run
     c.execute("UPDATE stats SET total_processed=0, total_attacks=0 WHERE id=1")
@@ -70,7 +71,7 @@ def simulate_realtime(dataset_path='dataset.csv'):
             packet_data = row.to_dict()
             
             # Predict using Hybrid Model
-            pred_code, label, model_used = ids.predict(packet_data)
+            pred_code, label, model_used, shap_info = ids.predict(packet_data)
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             processed_count += 1
@@ -87,8 +88,8 @@ def simulate_realtime(dataset_path='dataset.csv'):
             c.execute("UPDATE stats SET total_processed=?, total_attacks=? WHERE id=1", 
                       (processed_count, attack_count))
             
-            c.execute("INSERT INTO predictions (timestamp, prediction, model_used, hash_val) VALUES (?, ?, ?, ?)",
-                      (timestamp, label, model_used, hash_val))
+            c.execute("INSERT INTO predictions (timestamp, prediction, model_used, hash_val, shap_info) VALUES (?, ?, ?, ?, ?)",
+                      (timestamp, label, model_used, hash_val, shap_info))
             
             # Sub-table capping to keep fetch times short for visualization
             c.execute("DELETE FROM predictions WHERE id NOT IN (SELECT id FROM predictions ORDER BY id DESC LIMIT 15)")
