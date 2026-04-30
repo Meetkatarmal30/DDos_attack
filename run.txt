@@ -1,0 +1,161 @@
+Since you're already inside the project folder and your virtual environment is activated:
+
+```powershell
+(venv) PS C:\Users\hp\out\micro project\ddos\DDos_attack>
+```
+
+you can run the project like this.
+
+---
+
+# Option 1 (Best): Run the batch file
+
+Since this project already includes:
+
+```text
+start_project.bat
+```
+
+just execute:
+
+```powershell
+.\start_project.bat
+```
+
+This should automatically:
+
+* install dependencies
+* generate dataset
+* preprocess data
+* train the hybrid ML model
+* start the Flask dashboard
+* begin real-time simulation
+
+Then open:
+
+```text
+http://127.0.0.1:5000
+```
+
+in your browser.
+
+---
+
+# If PowerShell blocks `.bat`
+
+Use:
+
+```powershell
+cmd /c start_project.bat
+```
+
+This forces it through Command Prompt.
+
+---
+
+# Option 2 (Manual Run)
+
+If the batch file fails, run step by step:
+
+## Install dependencies
+
+```powershell
+pip install -r requirements.txt
+```
+
+---
+
+## Generate dataset
+
+```powershell
+python generate_data.py
+```
+
+---
+
+## Train model
+
+```powershell
+python train_model.py
+```
+
+---
+
+## Start Flask dashboard
+
+Open terminal 1:
+
+```powershell
+python app.py
+```
+
+Keep it running.
+
+---
+
+## Start real-time simulation
+
+Open terminal 2:
+
+```powershell
+python realtime.py
+```
+
+Keep this running too.
+
+---
+
+# Very Important
+
+If you get:
+
+```text
+ModuleNotFoundError
+```
+
+or
+
+```text
+No module named ...
+```
+
+run:
+
+```powershell
+pip install -r requirements.txt
+```
+
+again.
+
+---
+
+# If SHAP causes problems
+
+Sometimes SHAP installation fails on Windows.
+
+Then install manually:
+
+```powershell
+pip install shap
+```
+
+or:
+
+```powershell
+pip install --upgrade pip setuptools wheel
+pip install shap
+```
+
+---
+
+# My recommendation
+
+Use this first:
+
+```powershell
+.\start_project.bat
+```
+
+because the project author designed everything around that.
+
+That is the correct intended way to run it.

@@ -1,6 +1,49 @@
 import pandas as pd
 import numpy as np
 
+def load_real_dataset(parquet_path='cic-collection.parquet', output_filename='dataset.csv', sample_size=50000):
+    """
+    Load real CIC-IDS data from parquet and save a sample to dataset.csv for training
+    """
+    print(f"Loading real data from {parquet_path}...")
+    
+    try:
+        df = pd.read_parquet(parquet_path)
+    except Exception as e:
+        print(f"Error loading parquet: {e}")
+        return
+    
+    print(f"Original data shape: {df.shape}")
+    print(f"Columns: {df.columns.tolist()[:10]}... (showing first 10)")
+    
+    # Sample if dataset is too large
+    if len(df) > sample_size:
+        df = df.sample(n=sample_size, random_state=42)
+        print(f"Sampled {sample_size} rows for training")
+    
+    # Find and standardize Label column
+    label_col = None
+    for col in df.columns:
+        if 'label' in col.lower():
+            label_col = col
+            break
+    
+    if label_col is None:
+        print("ERROR: No Label column found in dataset")
+        print(f"Available columns: {df.columns.tolist()}")
+        return
+    
+    # Rename to 'Label' if different
+    if label_col != 'Label':
+        df = df.rename(columns={label_col: 'Label'})
+        print(f"Renamed '{label_col}' to 'Label'")
+    
+    print(f"\nFinal data shape: {df.shape}")
+    print(f"Class distribution:\n{df['Label'].value_counts()}")
+    
+    df.to_csv(output_filename, index=False)
+    print(f"\n✓ Real dataset saved to {output_filename}")
+
 def generate_mock_dataset(filename='dataset.csv', num_samples=3000):
     """
     Generates a mock dataset resembling CICIDS2017 feature structures.
@@ -43,4 +86,5 @@ def generate_mock_dataset(filename='dataset.csv', num_samples=3000):
     print(f"Success! Mock dataset saved to {filename}")
 
 if __name__ == "__main__":
-    generate_mock_dataset()
+    # Load REAL data from the CIC parquet file
+    load_real_dataset('cic-collection.parquet')

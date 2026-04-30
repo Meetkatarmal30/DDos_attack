@@ -1,99 +1,152 @@
 import pandas as pd
 import numpy as np
 import joblib
+import os
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix, classification_report
-import os
+from sklearn.metrics import (accuracy_score, precision_score, 
+                              recall_score, f1_score,
+                              confusion_matrix, classification_report)
 
 from preprocess import (
-    load_and_clean_data, 
-    encode_labels, 
-    normalize_features, 
-    handle_imbalance, 
+    load_and_clean_data,
+    encode_labels,
+    normalize_features,
+    handle_imbalance,
     optimize_features
 )
 
 def run_training(dataset_path):
     if not os.path.exists(dataset_path):
         print(f"Error: {dataset_path} not found.")
-        print("Please run `generate_data.py` first to create a mock dataset.")
         return
 
-    # 1. Load and clean
+    # Step 1: Load and clean
     df = load_and_clean_data(dataset_path)
     label_col = 'Label'
-    
-    # 2. Encode
+
+    # Step 2: Encode labels
     df = encode_labels(df, label_col)
-    
-    # 3. Separate features and target
+
+    # Step 3: Separate features and target
     X_raw = df.drop(columns=[label_col, 'encoded_label'])
     y_raw = df['encoded_label']
     feature_names = X_raw.columns.tolist()
+
+    print(f"\nClass distribution before split:")
+    print(y_raw.value_counts())
+
+    # Step 4: Split FIRST before any resampling (critical fix)
+    X_train_raw, X_test_raw, y_train, y_test = train_test_split(
+        X_raw, y_raw, test_size=0.2, random_state=42, stratify=y_raw
+    )
+    print(f"\nTrain size: {X_train_raw.shape[0]}, Test size: {X_test_raw.shape[0]}")
+
+    # Step 5: Apply SMOTE only on training data
+    X_train_res, y_train_res = handle_imbalance(X_train_raw, y_train)
+
+    # Step 6: Feature selection using only training data
+    top_indices, top_features = optimize_features(
+        X_train_res, y_train_res, feature_names, top_n=20
+    )
+
+    # Step 7: Apply feature selection to both train and test
+    # Robust handling: X_train_res could be numpy array or DataFrame after SMOTE
+    if hasattr(X_train_res, 'iloc'):
+        # It's a DataFrame - use pandas indexing
+        X_train_selected = X_train_res.iloc[:, top_indices].values
+    else:
+        # It's a numpy array - use numpy indexing
+        X_train_selected = X_train_res[:, top_indices]
     
-    # 4. Handle Imbalance with SMOTE
-    X_res, y_res = handle_imbalance(X_raw, y_raw)
-    
-    # 5. Optimize Features (Train RF for importance)
-    top_indices, top_features = optimize_features(X_res, y_res, feature_names)
-    X_optimized = X_res.iloc[:, top_indices]
-    
-    # Save selected feature indices/names
+    X_test_selected = X_test_raw.iloc[:, top_indices].values
+
+    # Step 8: Normalize (fit on train, transform both)
+    X_train_scaled, X_test_scaled, scaler = normalize_features(
+        X_train_selected, X_test_selected
+    )
+
+    # Step 9: Save artifacts
     os.makedirs('models', exist_ok=True)
     joblib.dump(top_features, 'models/top_features.pkl')
-    
-    # 6. Normalize
-    X_scaled, scaler = normalize_features(X_optimized)
     joblib.dump(scaler, 'models/scaler.pkl')
-    
-    # 7. Split data
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_res, test_size=0.3, random_state=42)
-    
+
     print("\n--- Training Hybrid Model Components ---")
-    
-    # 8a. Train Logistic Regression (Stage 1)
+
+    # Step 10a: Train Logistic Regression
     print("Training Logistic Regression (Stage 1: Fast Filter)...")
-    lr_model = LogisticRegression(max_iter=1000)
-    lr_model.fit(X_train, y_train)
+    lr_model = LogisticRegression(max_iter=2000, C=1.0, solver='lbfgs', class_weight='balanced')
+    lr_model.fit(X_train_scaled, y_train_res)
     joblib.dump(lr_model, 'models/lr_model.pkl')
-    
-    # 8b. Train Random Forest (Stage 2)
-    print("Training Random Forest (Stage 2: Final Classifier)...")
-    rf_model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
-    rf_model.fit(X_train, y_train)
+    print("LR training complete.")
+
+    # Step 10b: Train Random Forest
+    print("Training Random Forest (Stage 2: Expert Classifier)...")
+    rf_model = RandomForestClassifier(
+        n_estimators=300,
+        max_depth=None,
+        min_samples_leaf=2,
+        random_state=42,
+        n_jobs=-1,
+        class_weight='balanced_subsample'
+    )
+    rf_model.fit(X_train_scaled, y_train_res)
     joblib.dump(rf_model, 'models/rf_model.pkl')
-    
-    print("\n--- Evaluation on Test Data ---")
-    # Simulate hybrid prediction to evaluate
-    print("Simulating Hybrid Prediction Evaluation...")
+    print("RF training complete.")
+
+    print("\n--- Evaluation on Test Data (Unseen) ---")
+
+    # Step 11: Evaluate using correct hybrid logic matching inference
+    # Use predict_proba for LR with confidence threshold
+    LR_THRESHOLD = 0.4
+
+    lr_proba = lr_model.predict_proba(X_test_scaled)[:, 1]
+    rf_preds = rf_model.predict(X_test_scaled)
+
     hybrid_preds = []
-    
-    # For evaluation, we predict all using LR and RF separately, then combine logically
-    lr_preds = lr_model.predict(X_test)
-    rf_preds = rf_model.predict(X_test)
-    
-    # Hybrid logic: If LR predicts 0 (Normal), return Normal. Else use RF.
-    for lr_p, rf_p in zip(lr_preds, rf_preds):
-        if lr_p == 0:
+    model_used_log = []
+
+    for i, prob in enumerate(lr_proba):
+        if prob < LR_THRESHOLD:
+            # LR is confident it is BENIGN
             hybrid_preds.append(0)
+            model_used_log.append("LR")
         else:
-            hybrid_preds.append(rf_p)
-            
-    print("\n===== Hybrid Model Results =====")
+            # LR suspects attack, defer to RF
+            hybrid_preds.append(rf_preds[i])
+            model_used_log.append("RF")
+
+    hybrid_preds = np.array(hybrid_preds)
+
+    print("\n===== HYBRID MODEL RESULTS =====")
     print(f"Accuracy:  {accuracy_score(y_test, hybrid_preds):.4f}")
     print(f"Precision: {precision_score(y_test, hybrid_preds):.4f}")
     print(f"Recall:    {recall_score(y_test, hybrid_preds):.4f}")
-    
+    print(f"F1 Score:  {f1_score(y_test, hybrid_preds):.4f}")
+
     print("\nConfusion Matrix:")
-    print(confusion_matrix(y_test, hybrid_preds))
-    
-    print("\n--- Explanation of Hybrid Results ---")
-    print("1. Logistic Regression acts as a fast preliminary filter. By quickly classifying obvious regular traffic as NORMAL, it saves computational time.")
-    print("2. The Random Forest acts as an expert. If Logistic Regression suspects it might be malicious, the Random Forest double checks with a deeper non-linear analysis.")
-    print("3. This combination achieves high real-time throughput while keeping misclassifications low.")
-    print("\nModels successfully saved in 'models/' directory.")
+    cm = confusion_matrix(y_test, hybrid_preds)
+    print(cm)
+    tn, fp, fn, tp = cm.ravel()
+    print(f"True Negatives (correctly benign): {tn}")
+    print(f"False Positives (benign flagged as attack): {fp}")
+    print(f"False Negatives (attacks missed): {fn}")
+    print(f"True Positives (correctly detected attacks): {tp}")
+    print(f"False Positive Rate: {fp/(fp+tn):.4f}")
+    print(f"False Negative Rate: {fn/(fn+tp):.4f}")
+
+    print("\nFull Classification Report:")
+    print(classification_report(y_test, hybrid_preds, 
+                                 target_names=['BENIGN', 'ATTACK']))
+
+    lr_count = model_used_log.count("LR")
+    rf_count = model_used_log.count("RF")
+    print(f"\nHybrid routing: LR handled {lr_count} samples, RF handled {rf_count} samples")
+    print(f"LR fast-path efficiency: {lr_count/len(model_used_log)*100:.1f}% of traffic handled instantly")
+
+    print("\nAll models saved to models/ directory.")
+    print("You can now run: python app.py and python realtime.py")
 
 if __name__ == "__main__":
     run_training('dataset.csv')
