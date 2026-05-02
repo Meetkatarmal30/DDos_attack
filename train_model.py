@@ -71,6 +71,11 @@ def run_training(dataset_path):
     os.makedirs('models', exist_ok=True)
     joblib.dump(top_features, 'models/top_features.pkl')
     joblib.dump(scaler, 'models/scaler.pkl')
+    # Save thresholds to ensure inference matches training
+    LR_THRESHOLD = 0.3
+    RF_THRESHOLD = 0.45
+    joblib.dump(LR_THRESHOLD, 'models/lr_threshold.pkl')
+    joblib.dump(RF_THRESHOLD, 'models/rf_threshold.pkl')
 
     print("\n--- Training Hybrid Model Components ---")
 
@@ -98,17 +103,19 @@ def run_training(dataset_path):
     print("\n--- Evaluation on Test Data (Unseen) ---")
 
     # Step 11: Evaluate using correct hybrid logic matching inference
-    # Use predict_proba for LR with confidence threshold
-    LR_THRESHOLD = 0.4
-
+    # Use predict_proba for LR with confidence threshold (thresholds saved with models)
     lr_proba = lr_model.predict_proba(X_test_scaled)[:, 1]
-    rf_preds = rf_model.predict(X_test_scaled)
+    rf_proba = rf_model.predict_proba(X_test_scaled)[:, 1]
+    rf_preds = (rf_proba >= joblib.load('models/rf_threshold.pkl')).astype(int)
 
     hybrid_preds = []
     model_used_log = []
 
+    # Load LR threshold saved earlier to ensure inference matches training
+    lr_threshold = joblib.load('models/lr_threshold.pkl')
+
     for i, prob in enumerate(lr_proba):
-        if prob < LR_THRESHOLD:
+        if prob < lr_threshold:
             # LR is confident it is BENIGN
             hybrid_preds.append(0)
             model_used_log.append("LR")

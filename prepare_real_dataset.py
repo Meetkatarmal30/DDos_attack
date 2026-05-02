@@ -49,12 +49,6 @@ df_output = df_sampled[required_columns].copy()
 column_mapping = {
     'Fwd Packets Length Total': 'Total Length of Fwd Packets',
     'Bwd Packets Length Total': 'Total Length of Bwd Packets',
-    'Fwd Packet Length Max': 'Fwd Packet Length Max',
-    'Fwd Packet Length Mean': 'Fwd Packet Length Mean',
-    'Fwd Packet Length Std': 'Fwd Packet Length Min',  # Use std as proxy for min
-    'Bwd Packet Length Max': 'Bwd Packet Length Max',
-    'Bwd Packet Length Mean': 'Bwd Packet Length Mean',
-    'Bwd Packet Length Std': 'Bwd Packet Length Min',  # Use std as proxy for min
 }
 
 df_output = df_output.rename(columns=column_mapping)

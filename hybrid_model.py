@@ -7,8 +7,6 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-LR_THRESHOLD = 0.4  # Lowered to improve recall; must match train_model.py
-
 class HybridIDS:
     def __init__(self, models_dir='models'):
         try:
@@ -16,9 +14,13 @@ class HybridIDS:
             self.top_features = joblib.load(os.path.join(models_dir, 'top_features.pkl'))
             self.lr_model = joblib.load(os.path.join(models_dir, 'lr_model.pkl'))
             self.rf_model = joblib.load(os.path.join(models_dir, 'rf_model.pkl'))
+            # Load thresholds saved during training
+            self.lr_threshold = joblib.load(os.path.join(models_dir, 'lr_threshold.pkl'))
+            self.rf_threshold = joblib.load(os.path.join(models_dir, 'rf_threshold.pkl'))
+
             self.ready = True
-            print("Models loaded successfully.")
-            
+            print("Models and thresholds loaded successfully.")
+
             # Initialize SHAP explainer on RF
             self.explainer = shap.TreeExplainer(self.rf_model)
             print("SHAP explainer ready.")
@@ -54,13 +56,14 @@ class HybridIDS:
             print(f"LR prediction error: {e}")
             return 0, "ERROR", "None", ""
 
-        if lr_prob_attack < LR_THRESHOLD:
+        if lr_prob_attack < self.lr_threshold:
             # LR confident it is benign, fast return
             return 0, "BENIGN", "Logistic Regression", ""
 
-        # Stage 2: RF expert decision
+        # Stage 2: RF expert decision using probability threshold
         try:
-            rf_pred = self.rf_model.predict(scaled_features)[0]
+            rf_proba = self.rf_model.predict_proba(scaled_features)[0][1]
+            rf_pred = 1 if rf_proba >= self.rf_threshold else 0
         except Exception as e:
             print(f"RF prediction error: {e}")
             return 0, "ERROR", "None", ""
@@ -114,17 +117,18 @@ class HybridIDS:
             print(f"Scaling error: {e}")
             return
 
-        # Get predictions
+        # Get predictions (probabilities) and apply thresholds
         lr_proba = self.lr_model.predict_proba(features)[:, 1]
-        rf_preds = self.rf_model.predict(features)
+        rf_proba = self.rf_model.predict_proba(features)[:, 1]
+        rf_preds = (rf_proba >= self.rf_threshold).astype(int)
 
         # Apply hybrid logic
         hybrid_preds = []
-        for prob in lr_proba:
-            if prob < LR_THRESHOLD:
+        for i, prob in enumerate(lr_proba):
+            if prob < self.lr_threshold:
                 hybrid_preds.append(0)
             else:
-                hybrid_preds.append(rf_preds[len(hybrid_preds)])
+                hybrid_preds.append(int(rf_preds[i]))
 
         hybrid_preds = np.array(hybrid_preds)
 
